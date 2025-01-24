@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Car Damage Detection</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .upload-box {
+            border: 2px dashed #ccc;
+            border-radius: 10px;
+            padding: 30px;
+            text-align: center;
+            margin: 20px 0;
+            background: #f8f9fa;
+        }
+        .upload-box:hover {
+            border-color: #0d6efd;
+        }
+        .preview-image {
+            max-width: 100%;
+            max-height: 400px;
+            margin: 20px 0;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        .damage-card {
+            border-radius: 10px;
+            margin: 10px 0;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        .loading {
+            display: none;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container py-5">
+        <h1 class="text-center mb-4">Car Damage Detection and Cost Estimation</h1>
+        
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="upload-box">
+                    <form id="upload-form">
+                        <input type="file" id="image-input" accept=".jpg,.jpeg,.png" class="form-control mb-3" required>
+                        <button type="submit" class="btn btn-primary">Analyze Damage</button>
+                    </form>
+                </div>
+
+                <div class="loading text-center" id="loading">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2">Analyzing image...</p>
+                </div>
+
+                <div class="result-container" id="result" style="display: none;">
+                    <div class="card damage-card">
+                        <div class="card-body">
+                            <h3 class="card-title">Detection Results</h3>
+                            <div id="damage-details"></div>
+                            <hr>
+                            <div id="cost-estimate" class="mt-3"></div>
+                        </div>
+                    </div>
+
+                    <div class="card damage-card mt-4">
+                        <div class="card-body">
+                            <h3 class="card-title">Analyzed Image</h3>
+                            <img id="uploaded-image" class="preview-image" src="" alt="Uploaded car image">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('upload-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData();
+            const fileInput = document.getElementById('image-input');
+            formData.append('file', fileInput.files[0]);
+            
+            // Show loading spinner
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('result').style.display = 'none';
+            
+            try {
+                const response = await fetch('/predict', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    // Hide loading spinner
+                    document.getElementById('loading').style.display = 'none';
+                    
+                    // Display results
+                    document.getElementById('result').style.display = 'block';
+                    
+                    // Show damage details
+                    let damageHTML = '<div class="list-group">';
+                    result.damage_detected.forEach(damage => {
+                        const confidence = (damage.confidence * 100).toFixed(1);
+                        damageHTML += `
+                            <div class="list-group-item">
+                                <h5 class="mb-1">${damage.damage_type}</h5>
+                                <div class="progress">
+                                    <div class="progress-bar" role="progressbar" 
+                                         style="width: ${confidence}%" 
+                                         aria-valuenow="${confidence}" 
+                                         aria-valuemin="0" 
+                                         aria-valuemax="100">
+                                        ${confidence}%
+                                    </div>
+                                </div>
+                            </div>`;
+                    });
+                    damageHTML += '</div>';
+                    document.getElementById('damage-details').innerHTML = damageHTML;
+                    
+                    // Show cost estimate
+                    document.getElementById('cost-estimate').innerHTML = `
+                        <div class="alert alert-info">
+                            <h4 class="alert-heading">Estimated Repair Cost</h4>
+                            <p class="mb-0">Minimum: $${result.cost_estimate.min_cost}</p>
+                            <p class="mb-0">Maximum: $${result.cost_estimate.max_cost}</p>
+                        </div>
+                    `;
+                    
+                    // Show uploaded image
+                    document.getElementById('uploaded-image').src = `/static/${result.image_path}`;
+                } else {
+                    alert(result.error || 'An error occurred');
+                    document.getElementById('loading').style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('An error occurred while processing the image');
+                document.getElementById('loading').style.display = 'none';
+            }
+        });
+
+        // Preview image before upload
+        document.getElementById('image-input').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    document.getElementById('uploaded-image').src = e.target.result;
+                    document.getElementById('result').style.display = 'block';
+                    document.getElementById('damage-details').innerHTML = '';
+                    document.getElementById('cost-estimate').innerHTML = '';
+                }
+                reader.readAsDataURL(file);
+            }
+        });
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html> 
